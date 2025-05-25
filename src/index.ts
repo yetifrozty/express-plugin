@@ -1,10 +1,11 @@
 import { BaseHooks } from "base-plugin-system";
 import express, { RequestHandler } from "express";
+import http from "http";
 
 type MaybePromise<T> = Promise<T> | T;
 
 export interface ExpressHooks {
-  initExpress: (app: express.Application) => MaybePromise<void>;
+  initExpress: (app: express.Application, stop: () => void) => MaybePromise<void>;
 }
 
 function pluginHasExpressHooks(plugin: any): plugin is ExpressHooks {
@@ -20,6 +21,16 @@ function expressPlugin(): ExpressPlugin {
   let plugins: any[] = [];
   let port: number;
   let app: express.Application;
+  let server: http.Server;
+  let stopped = false;
+
+  function stop() {
+    if (server) {
+      server.close();
+    }
+    stopped = true;
+  }
+  
   return {
     name: "express",
     get port() {
@@ -34,10 +45,14 @@ function expressPlugin(): ExpressPlugin {
 
       const relevantPlugins = plugins.filter(pluginHasExpressHooks);
       for (const plugin of relevantPlugins) {
-        await plugin.initExpress(app);
+        await plugin.initExpress(app, stop);
       }
 
-      app.listen(port, () => {
+      if (stopped) {
+        return;
+      }
+
+      server = app.listen(port, () => {
         console.log(`Server is running on port ${port}`);
       });
     },
