@@ -5,7 +5,8 @@ import http from "http";
 type MaybePromise<T> = Promise<T> | T;
 
 export interface ExpressHooks {
-  initExpress: (app: express.Application, stop: () => void) => MaybePromise<void>;
+  initExpress?: (app: express.Application, stop: () => void) => MaybePromise<void>;
+  postInitExpress?: () => MaybePromise<void>;
 }
 
 function pluginHasExpressHooks(plugin: any): plugin is ExpressHooks {
@@ -15,6 +16,7 @@ function pluginHasExpressHooks(plugin: any): plugin is ExpressHooks {
 export interface ExpressPlugin extends BaseHooks {
   name: "express";
   port: number;
+  getExpressApp: () => express.Application;
 }
 
 function expressPlugin(): ExpressPlugin {
@@ -45,7 +47,11 @@ function expressPlugin(): ExpressPlugin {
 
       const relevantPlugins = plugins.filter(pluginHasExpressHooks);
       for (const plugin of relevantPlugins) {
-        await plugin.initExpress(app, stop);
+        await plugin.initExpress?.(app, stop);
+      }
+
+      for (const plugin of relevantPlugins) {
+        await plugin.postInitExpress?.();
       }
 
       if (stopped) {
@@ -56,6 +62,7 @@ function expressPlugin(): ExpressPlugin {
         console.log(`Server is running on port ${port}`);
       });
     },
+    getExpressApp: () => app,
   };
 }
 
