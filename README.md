@@ -14,8 +14,7 @@ An Express.js plugin for the base plugin system that provides HTTP server functi
 ## Installation
 
 ```bash
-npm install express
-npm install @types/express  # If using TypeScript
+npm install @yetifrozty/express-plugin
 ```
 
 ## API
@@ -76,108 +75,41 @@ process.env.PORT = '3000';
 ### Creating Express-Enabled Plugins
 
 ```typescript
-import { BaseHooks, ExpressHooks } from 'base-plugin-system';
-import { ExpressPlugin } from 'express-plugin-system';
-import express from 'express';
+import { BaseHooks } from 'base-plugin-system';
+import { expressPlugin, type ExpressHooks } from '@yetifrozty/express-plugin';
 
 // API Routes Plugin
-const apiPlugin = (): BaseHooks & ExpressHooks => ({
-  name: 'api',
-  
-  initExpress: async (app, stop) => {
-    // Add middleware
-    app.use(express.json());
-    app.use('/api', express.Router());
-    
-    // Add routes
-    app.get('/api/health', (req, res) => {
-      res.json({ status: 'healthy', timestamp: new Date().toISOString() });
-    });
-    
-    app.get('/api/users', (req, res) => {
-      res.json([
-        { id: 1, name: 'John Doe' },
-        { id: 2, name: 'Jane Smith' }
-      ]);
-    });
-  },
-  
-  postInitExpress: async () => {
-    console.log('API routes initialized');
-  }
-});
+const apiPlugin = (): BaseHooks & ExpressHooks => {
+  let plugins!: any[] = []
+  return {
+    name: 'api',
+    init: async (_plugins) => {
+      plugins = _plugins
 
-// Authentication Plugin
-const authPlugin = (): BaseHooks & ExpressHooks => ({
-  name: 'auth',
-  
-  initExpress: async (app, stop) => {
-    // Add auth middleware
-    const authenticateToken = (req: any, res: any, next: any) => {
-      const authHeader = req.headers['authorization'];
-      const token = authHeader && authHeader.split(' ')[1];
-      
-      if (!token) {
-        return res.sendStatus(401);
+      if (!plugins.some(p=>p.name === 'express')) {
+        const express = ExpressPlugin()
+        plugins.push(express)
+        express?.init(plugins)
       }
-      
-      // Verify token logic here
-      req.user = { id: 1, username: 'user' }; // Mock user
-      next();
-    };
-    
-    // Protected routes
-    app.use('/api/protected', authenticateToken);
-    
-    // Auth routes
-    app.post('/api/login', (req, res) => {
-      // Login logic
-      res.json({ token: 'mock-jwt-token' });
-    });
+    },
+    initExpress: async (app, stop) => {
+      // Add middleware
+      app.get("/", (req, res) => {
+        res.send("Hello world!")
+      })
+    },
+    postInitExpress: async () => {
+      console.log('All express dependent applications are initialized!');
+    }
   }
-});
+};
 
 // Initialize all plugins
 const plugins = [
-  expressPlugin(),
   apiPlugin(),
-  authPlugin()
 ];
 
 await initPlugins(plugins);
-```
-
-### Accessing Other Plugins
-
-```typescript
-const integratedPlugin = (): BaseHooks & ExpressHooks => ({
-  name: 'integrated',
-  
-  init: async (plugins) => {
-    // Find the Express plugin during base initialization
-    const expressPlugin = plugins.find(p => p.name === 'express') as ExpressPlugin;
-    console.log(`Express will run on port: ${expressPlugin.port}`);
-  },
-  
-  initExpress: async (app, stop) => {
-    // Express-specific initialization
-    app.get('/api/info', (req, res) => {
-      res.json({ 
-        message: 'Integrated plugin active',
-        port: process.env.PORT || 5173
-      });
-    });
-  },
-  
-  postInitExpress: async () => {
-    // Access the Express app after initialization
-    const plugins = /* get plugins reference */;
-    const expressPlugin = plugins.find(p => p.name === 'express') as ExpressPlugin;
-    const app = expressPlugin.getExpressApp();
-    
-    // Can add additional configuration here
-  }
-});
 ```
 
 ## Initialization Flow
@@ -190,20 +122,6 @@ const integratedPlugin = (): BaseHooks & ExpressHooks => ({
 
 ## Configuration
 
-### Environment Variables
+The express plugin can be configured using environment variables.
 
 - **`PORT`**: Server port (defaults to 5173)
-
-### Example .env file
-```env
-PORT=3000
-NODE_ENV=production
-```
-
-## License
-
-MIT
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request. 
